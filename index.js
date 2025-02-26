@@ -67,33 +67,62 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
             description: result.description, 
             duration: result.duration, 
             date: result.date.toDateString("yyyy-mm-dd"),
-            _id: result._id});
+            _id: result.user._id});
+    });
+});
+
+app.get('/api/users/:_id/exercises', (req, res) => {
+    User.findById(req.params._id).populate('exercises').exec().then(result => {
+        console.log(result.exercises);
+        Object.defineProperty(result, 'exercises', result.exercises);
+        res.json(result);
+    });
+});
+app.get('/api/users', (req, res) => {
+    User.find().exec().then(result => {
+        res.json(result);
+    });
+});
+app.get('/api/users/:id', (req, res) => {
+    User.findById(req.params.id).populate('exercises').exec().then(result => {
+        res.json(result);
     });
 });
 
 app.get('/api/users/:id/logs', (req, res) => {
     let userQuery = User.findById(req.params.id);
     let logs = User.findById(req.params.id).populate('exercises');
-    console.log(logs);
-    if (req.query.from){
-        logs.where('date').gte(new Date(req.query.from));
-    }
-    if (req.query.to){
-        logs.where('date').lte(new Date(req.query.to));
-    }
-    if (req.query.limit){
-        logs.limit(parseInt(req.query.limit));
-    }
     logs.exec().then(async result => {
         let user = await userQuery.exec();
-        let parsedResults = result.exercises.map(excercise => {
+        let counter = 0
+        let parsedResults = result?.exercises.map(excercise => {
+            if (req.query.from){
+                console.log("entered");
+                if (excercise.date < Date.parse(req.query.from)){
+                    console.log("skipped");
+                    return;
+                }
+            }
+            if (req.query.to){
+                if (excercise.date >= Date.parse(req.query.to)){
+                    return;
+                }
+            }
+            if (req.query.limit){
+                console.log("entered limit");
+                if (req.query.limit <= counter){
+                    console.log(req.query.limit + " " + counter);
+                    return;
+                }
+                counter++;
+            }
             return {
                 description: excercise.description,
                 duration: excercise.duration,
                 date: excercise.date.toDateString()
             };
-        });
-        res.json({username: user.username, count: result.length, _id: user._id, log: parsedResults});
+        }).filter(e => e != null);
+        res.json({username: user.username, count: parsedResults?.length ?? 0, _id: user._id, log: parsedResults});
     });
 });
 
